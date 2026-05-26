@@ -58,28 +58,92 @@ function getLesson(day) {
   return LESSONS_MAP ? LESSONS_MAP[day] || null : null;
 }
 
-// ─── LaTeX-ish renderer ──────────────────────────────────────────────────────
-function renderFormula(latex) {
+// ─── LaTeX renderer (KaTeX) ──────────────────────────────────────────────────
+// KaTeX is loaded once on first formula render. Falls back to plain text if
+// the CDN is blocked or KaTeX fails to load.
+let KATEX_PROMISE = null;
+function ensureKatex() {
+  if (KATEX_PROMISE) return KATEX_PROMISE;
+  KATEX_PROMISE = new Promise((resolve) => {
+    // CSS
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css";
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+    // JS
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js";
+    script.crossOrigin = "anonymous";
+    script.onload  = () => resolve(window.katex || null);
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+  return KATEX_PROMISE;
+}
+// Warm the loader at module evaluation time so first render is instant.
+ensureKatex();
+
+function fallbackRender(latex) {
+  // If KaTeX fails, render a readable plain-text approximation.
   if (!latex) return "";
-  return latex
+  return String(latex)
+    .replace(/\\text\{([^}]*)\}/g, "$1")
+    .replace(/\\mathrm\{([^}]*)\}/g, "$1")
     .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1) / ($2)")
     .replace(/\\sqrt\{([^}]+)\}/g, "√($1)")
     .replace(/\\sum/g, "Σ").replace(/\\prod/g, "Π")
     .replace(/\\sigma/g, "σ").replace(/\\mu/g, "μ")
     .replace(/\\alpha/g, "α").replace(/\\beta/g, "β")
-    .replace(/\\gamma/g, "γ").replace(/\\delta/g, "δ").replace(/\\Delta/g, "Δ")
-    .replace(/\\lambda/g, "λ").replace(/\\rho/g, "ρ")
+    .replace(/\\gamma/g, "γ").replace(/\\Gamma/g, "Γ")
+    .replace(/\\delta/g, "δ").replace(/\\Delta/g, "Δ")
+    .replace(/\\epsilon/g, "ε").replace(/\\varepsilon/g, "ε")
+    .replace(/\\lambda/g, "λ").replace(/\\Lambda/g, "Λ")
+    .replace(/\\rho/g, "ρ").replace(/\\phi/g, "φ").replace(/\\Phi/g, "Φ")
     .replace(/\\theta/g, "θ").replace(/\\Theta/g, "Θ")
     .replace(/\\nu/g, "ν").replace(/\\pi/g, "π").replace(/\\infty/g, "∞")
     .replace(/\\times/g, "×").replace(/\\cdot/g, "·").replace(/\\pm/g, "±")
-    .replace(/\\leq/g, "≤").replace(/\\geq/g, "≥").replace(/\\neq/g, "≠").replace(/\\approx/g, "≈")
+    .replace(/\\leq/g, "≤").replace(/\\geq/g, "≥")
+    .replace(/\\neq/g, "≠").replace(/\\approx/g, "≈")
     .replace(/\\ln/g, "ln").replace(/\\log/g, "log").replace(/\\exp/g, "exp")
+    .replace(/\\max/g, "max").replace(/\\min/g, "min")
     .replace(/\\left\(/g, "(").replace(/\\right\)/g, ")")
     .replace(/\\left\[/g, "[").replace(/\\right\]/g, "]")
-    .replace(/\\,|\\;|\\:/g, " ")
+    .replace(/\\left\|/g, "|").replace(/\\right\|/g, "|")
+    .replace(/\\quad|\\,|\\;|\\:/g, " ")
     .replace(/\\\\/g, " ")
-    .replace(/[{}]/g, "")
-    .replace(/\\_/g, "_");
+    .replace(/\\_/g, "_")
+    .replace(/[{}]/g, "");
+}
+
+function Formula({ latex }) {
+  const ref = useRef(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (!latex || !ref.current) return;
+    ensureKatex().then((katex) => {
+      if (cancelled || !ref.current) return;
+      if (katex) {
+        try {
+          katex.render(String(latex), ref.current, {
+            throwOnError: false,
+            displayMode: true,
+            output: "html",
+          });
+          setReady(true);
+        } catch {
+          ref.current.textContent = fallbackRender(latex);
+          setReady(true);
+        }
+      } else {
+        ref.current.textContent = fallbackRender(latex);
+        setReady(true);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [latex]);
+  return html`<div ref=${ref} class="formula-render">${!ready ? fallbackRender(latex) : ""}</div>`;
 }
 
 // ─── Firestore helpers ───────────────────────────────────────────────────────
@@ -295,13 +359,13 @@ function LessonView({ user, state, setState, day, goToDay }) {
           <div class="formula-row">
             <div class="formula-card primary">
               <div class="card-label">CORE FORMULA</div>
-              <div class="formula-box">${renderFormula(lesson.core_formula?.latex)}</div>
+              <div class="formula-box"><${Formula} latex=${lesson.core_formula?.latex} /></div>
               ${lesson.core_formula?.variables?.map(v => html`<div class="formula-var">${v}</div>`)}
             </div>
             <div class="formula-card secondary">
               <div class="card-label" style="color:#475569">SECONDARY</div>
               <div class="formula-name">${lesson.secondary_formula?.name}</div>
-              <div class="formula-box muted">${renderFormula(lesson.secondary_formula?.latex)}</div>
+              <div class="formula-box muted"><${Formula} latex=${lesson.secondary_formula?.latex} /></div>
               <div class="formula-note">${lesson.secondary_formula?.note}</div>
             </div>
           </div>
