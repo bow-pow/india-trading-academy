@@ -252,6 +252,18 @@ input::placeholder, textarea::placeholder { color: #334155; }
 .formula-var::before { content: "▸ "; color: var(--accent); }
 .formula-note { color: #475569; font-size: 11px; margin-top: 8px; }
 
+/* KaTeX integration with our dark theme */
+.formula-box .katex-display { margin: 0; }
+.formula-box .katex {
+  color: inherit;
+  font-size: 1.05em;
+}
+.formula-box .katex-display > .katex { white-space: normal; }
+.formula-render { width: 100%; overflow-x: auto; overflow-y: hidden; }
+@media (max-width: 700px) {
+  .formula-box .katex { font-size: 0.92em; }
+}
+
 .worked-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 @media (max-width: 700px) { .worked-grid { grid-template-columns: 1fr; } }
 .worked-cell {
@@ -446,4 +458,5 @@ input::placeholder, textarea::placeholder { color: #334155; }
   .lesson-title { font-size: 20px; }
   .nav-tab { padding: 5px 9px; font-size: 10px; }
   .stat-num { font-size: 15px; }
-}
+  }
+  
