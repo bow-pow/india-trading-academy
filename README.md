@@ -5,7 +5,7 @@ Indian markets (NSE / BSE / F&O / SEBI). 175 lessons pre-generated and ship with
 the site; an optional final batch of 5 lessons (days 176–180) can be dropped in
 later without any code changes.
 
-## Architecture
+## Architecture ..
 
 ```
 ┌───────────────────┐         ┌──────────────────────┐
